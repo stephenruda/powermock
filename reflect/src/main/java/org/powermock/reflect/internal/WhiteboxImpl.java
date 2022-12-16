@@ -2310,9 +2310,38 @@ public class WhiteboxImpl {
         }
     }
 
+    // We have updated this method to solve the Java 12 issues
+    // This was taken from the solution implemented into PowerMock 2.0
+    // https://github.com/powermock/powermock/pull/1010
     private static void sedModifiersToField(Field fieldToRemoveFinalFrom, int fieldModifiersMaskWithoutFinal) throws IllegalAccessException {
         try {
-            Field modifiersField = Field.class.getDeclaredField("modifiers");
+            Field modifiersField = null;
+            try {
+                modifiersField = Field.class.getDeclaredField("modifiers");
+            } catch (NoSuchFieldException e) {
+                try {
+                    Method getDeclaredFields0 = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+                    boolean accessibleBeforeSet = getDeclaredFields0.isAccessible();
+                    getDeclaredFields0.setAccessible(true);
+                    Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+                    getDeclaredFields0.setAccessible(accessibleBeforeSet);
+                    for (Field field : fields) {
+                        if ("modifiers".equals(field.getName())) {
+                            modifiersField = field;
+                            break;
+                        }
+                    }
+                    if (modifiersField == null) {
+                        throw e;
+                    }
+                } catch (NoSuchMethodException ex) {
+                    ex.printStackTrace();
+                    throw e;
+                } catch (InvocationTargetException ex) {
+                    ex.printStackTrace();
+                    throw e;
+                }
+            }
             boolean accessibleBeforeSet = modifiersField.isAccessible();
             modifiersField.setAccessible(true);
             modifiersField.setInt(fieldToRemoveFinalFrom, fieldModifiersMaskWithoutFinal);
